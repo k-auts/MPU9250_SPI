@@ -11,11 +11,11 @@
  
 */
   
-#ifndef MPU9250_h
-#define MPU9250_h
+#ifndef MPU9250SPI_h
+#define MPU9250SPI_h
 
 #include "Arduino.h"
-#include "Wire.h"
+#include "SPI.h"
 
 // See also MPU-9250 Register Map and Descriptions, Revision 4.0, RM-MPU-9250A-00, Rev. 1.4, 9/9/2013 for registers not listed in 
 // above document; the MPU9250 and MPU9150 are virtually identical but the latter has a different register map
@@ -25,7 +25,7 @@
 #define WHO_AM_I_AK8963  0x00 // should return 0x48
 #define INFO             0x01
 #define AK8963_ST1       0x02  // data ready status bit 0
-#define AK8963_XOUT_L     0x03  // data
+#define AK8963_XOUT_L    0x03  // data
 #define AK8963_XOUT_H    0x04
 #define AK8963_YOUT_L    0x05
 #define AK8963_YOUT_H    0x06
@@ -33,6 +33,7 @@
 #define AK8963_ZOUT_H    0x08
 #define AK8963_ST2       0x09  // Data overflow bit 3 and data read error status bit 2
 #define AK8963_CNTL      0x0A  // Power down (0000), single-measurement (0001), self-test (1000) and Fuse ROM (1111) modes on bits 3:0
+#define AK8963_CNTL2     0x0B  // Reset
 #define AK8963_ASTC      0x0C  // Self test control
 #define AK8963_I2CDIS    0x0F  // I2C disable
 #define AK8963_ASAX      0x10  // Fuse ROM x-axis sensitivity adjustment value
@@ -194,15 +195,17 @@
 #endif  
 
 
-class MPU9250
+class MPU9250SPI
 {
   public: 
-  MPU9250(uint8_t intPin);
+  MPU9250SPI(uint8_t intPin, int SPIport,SPIClass _spi);
+  SPIClass  spi;
   uint8_t getMPU9250ID();
   uint8_t getAK8963CID();
   void resetMPU9250();
   void initMPU9250(uint8_t Ascale, uint8_t Gscale, uint8_t sampleRate);
   void initAK8963(uint8_t Mscale, uint8_t Mmode, float * destination);
+  void initAK8963Slave(uint8_t Mscale, uint8_t Mmode, float * destination);
   float getAres(uint8_t Ascale);
   float getGres(uint8_t Gscale);
   float getMres(uint8_t Mscale);
@@ -221,12 +224,16 @@ class MPU9250
   void accelWakeOnMotion();
   bool checkWakeOnMotion();
 //  void MadgwickQuaternionUpdate(float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz);
-  void I2Cscan();
-  void    writeByte(uint8_t address, uint8_t subAddress, uint8_t data);
-  uint8_t readByte(uint8_t address, uint8_t subAddress);
-  void    readBytes(uint8_t address, uint8_t subAddress, uint8_t count, uint8_t * dest);
+  // void I2Cscan();
+  void    writeByteAK8963(uint8_t subAddress, uint8_t data);
+  uint8_t readByteAK8963(uint8_t subAddress);
+  void    readBytesAK8963(uint8_t subAddress, uint8_t count, uint8_t * dest);
+  void    writeByte(uint8_t subAddress, uint8_t data);
+  uint8_t readByte(uint8_t subAddress);
+  void    readBytes(uint8_t subAddress, uint8_t count, uint8_t * dest);
   private:
   uint8_t _intPin;  
+  int SPI_CS_PIN;
   float _aRes;
   float _gRes;
   float _mRes;
