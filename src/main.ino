@@ -51,14 +51,13 @@ float eInt[3] = {0.0f, 0.0f, 0.0f};       // vector to hold integral error for M
 
 #define AK8963_ADDRESS   0x0C
 #define AK8963_WHO_AM_I  0x00 // should return 0x48
-int intPin = 1;
-int SPIPort = 1;
-SPIClass spi;
-MPU9250SPI MPU9250(intPin,SPIPort,spi);
+SPIClass spi = SPIClass(SPI1_MOSI_PIN, SPI1_MISO_PIN, SPI1_SCL_PIN);
+// MOSI, SCK
+MPU9250SPI MPU9250(SPI1_MOSI_PIN,SPI1_SCL_PIN, &spi);
 
 void setup() {
   Serial.begin(8000);
-
+  MPU9250.begin(SPI1_CS_PIN);
   Serial.println("MPU9250 9-axis motion sensor...");
   uint8_t c = MPU9250.getMPU9250ID();
   Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c, HEX); Serial.print(" I should be "); Serial.println(0x71, HEX);
@@ -106,14 +105,14 @@ void setup() {
   Serial.println("AK8963 mag biases (mG)"); Serial.println(magBias[0]); Serial.println(magBias[1]); Serial.println(magBias[2]); 
   Serial.println("AK8963 mag scale (mG)"); Serial.println(magScale[0]); Serial.println(magScale[1]); Serial.println(magScale[2]); 
   delay(2000); // add delay to see results before serial spew of data
-
+  
   if(SerialDebug) {
   Serial.println("Calibration values: ");
   Serial.print("X-Axis sensitivity adjustment value "); Serial.println(magCalibration[0], 2);
   Serial.print("Y-Axis sensitivity adjustment value "); Serial.println(magCalibration[1], 2);
   Serial.print("Z-Axis sensitivity adjustment value "); Serial.println(magCalibration[2], 2);
 
-  attachInterrupt(intPin, myinthandler, RISING);  // define interrupt for intPin output of MPU9250
+  attachInterrupt(SPI1_CS_PIN, myinthandler, RISING);  // define interrupt for intPin output of MPU9250
   }
   
   }

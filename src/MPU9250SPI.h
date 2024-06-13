@@ -198,8 +198,10 @@
 class MPU9250SPI
 {
   public: 
-  MPU9250SPI(uint8_t intPin, int SPIport,SPIClass _spi);
-  SPIClass  spi;
+  MPU9250SPI(uint8_t dataOut, uint8_t clock, SPIClass *mySPI = &SPI);
+  void begin(uint8_t select);
+  void reset();
+
   uint8_t getMPU9250ID();
   uint8_t getAK8963CID();
   void resetMPU9250();
@@ -225,14 +227,7 @@ class MPU9250SPI
   bool checkWakeOnMotion();
 //  void MadgwickQuaternionUpdate(float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz);
   // void I2Cscan();
-  void    writeByteAK8963(uint8_t subAddress, uint8_t data);
-  uint8_t readByteAK8963(uint8_t subAddress);
-  void    readBytesAK8963(uint8_t subAddress, uint8_t count, uint8_t * dest);
-  void    writeByte(uint8_t subAddress, uint8_t data);
-  uint8_t readByte(uint8_t subAddress);
-  void    readBytes(uint8_t subAddress, uint8_t count, uint8_t * dest);
   private:
-  uint8_t _intPin;  
   int SPI_CS_PIN;
   float _aRes;
   float _gRes;
@@ -242,6 +237,48 @@ class MPU9250SPI
   float _fuseROMy;
   float _fuseROMz;
   float _magCalibration[3];
+
+  protected:
+    uint8_t  _dataOut;              //  Data out Pin (MOSI)
+    uint8_t  _clock;                //  Clock Pin (SCK)
+    uint8_t  _select;               //  Chip Select Pin (CS)
+    uint8_t  _latchPin = 255;       //  Latch-DAC Pin (LDAC)
+    bool     _hwSPI;                //  Hardware SPI (true) or Software SPI (false)
+    uint32_t _SPIspeed = 16000000;  //  SPI-Bus Frequency
+
+    uint8_t  _channels;             //  Number of DAC-Channels of a given Chip
+    uint16_t _maxValue;             //  Maximum value of a given Chip
+    uint16_t _acceleration[2];      //  Current acceleration value  (cache for performance)
+    uint16_t _angular_velocity[2];  //  Current angular velocity value 
+    uint16_t _geo_magnet[2];        //  Current geo magnetometer value
+    uint8_t  _gain;                 //  Programmable Gain Amplifier variable
+    bool    _buffered = false;     //  Buffer for the Reference Voltage of the MCP49XX Series Chips
+    bool    _active   = true;      //  Indicates shutDown mode.
+    void    writeByteAK8963(uint8_t subAddress, uint8_t data);
+    uint8_t readByteAK8963(uint8_t subAddress);
+    void    readBytesAK8963(uint8_t subAddress, uint8_t count, uint8_t * dest);
+    void    writeByte(uint8_t subAddress, uint8_t data);
+    uint8_t readByte(uint8_t subAddress);
+    void    readBytes(uint8_t subAddress, uint8_t count, uint8_t * dest);
+    void    transfer(uint16_t data);   // Hardware SPI transfer
+    uint8_t swSPI_transfer(uint8_t d); // Software SPI transfer
+    #if defined(ARDUINO_ARCH_RP2040)
+
+      SPIClassRP2040 * mySPI;
+
+    #else
+
+      SPIClass    * mySPI;
+
+    #endif
+
+      SPISettings _spi_settings;
+
+    #if defined(ESP32)
+
+      bool     _useHSPI = true;
+
+    #endif
 };
 
 #endif

@@ -15,45 +15,62 @@
 #include "SPI.h"
 #include "io_config.h"
 
-MPU9250SPI::MPU9250SPI(uint8_t intPin, int SPI_port, SPIClass _spi)
+MPU9250SPI::MPU9250SPI(uint8_t dataOut,  uint8_t clock, SPIClass *inSPI)
 {
-  _intPin = intPin;
-  spi = _spi;
-  if(SPI_port == 1)
-  {
-    spi.setMISO(SPI1_MISO_PIN);
-    spi.setMOSI(SPI1_MOSI_PIN);
-    spi.setSCLK(SPI1_SCL_PIN);
-    spi.begin(); // Initialize SPI communication
-    pinMode(SPI1_CS_PIN, OUTPUT);
-    digitalWrite(SPI1_CS_PIN, HIGH);
-    SPI_CS_PIN = SPI1_CS_PIN;
-  }
-  else if(SPI_port == 4)
-  {
-    spi.setMISO(SPI4_MISO_PIN);
-    spi.setMOSI(SPI4_MOSI_PIN);
-    spi.setSCLK(SPI4_SCL_PIN);
-    spi.begin(); // Initialize SPI communication
-    pinMode(SPI4_CS_PIN, OUTPUT);
-    digitalWrite(SPI4_CS_PIN, HIGH);
-    SPI_CS_PIN = SPI4_CS_PIN;
-  }
-  else if(SPI_port == 5)
-  {
-    spi.setMISO(SPI5_MISO_PIN);
-    spi.setMOSI(SPI5_MOSI_PIN);
-    spi.setSCLK(SPI5_SCL_PIN);
-    spi.begin(); // Initialize SPI communication
-    pinMode(SPI5_CS_PIN, OUTPUT);
-    digitalWrite(SPI5_CS_PIN, HIGH);
-    SPI_CS_PIN = SPI5_CS_PIN;
-  }
-  else{
-    Serial.println("Failed to find SPI port");
-  }
+  mySPI = inSPI;
+  _dataOut  = dataOut;
+  _clock    = clock;
+  _select   = 0;
+  _hwSPI    = (dataOut == 255) || (clock == 255);
+  _channels = 1;
+  _maxValue = 255;
+  reset();
 }
 
+void MPU9250SPI::reset()
+{
+  _gain     = 1;
+  _buffered = false;
+  _active   = true;
+}
+
+void MPU9250SPI::begin(uint8_t select)
+{
+  _select = select;
+  pinMode(_select, OUTPUT);
+  digitalWrite(_select, HIGH);
+
+  _spi_settings = SPISettings(_SPIspeed, MSBFIRST, SPI_MODE3);
+
+  if (_hwSPI)
+  {
+    #if defined(ESP32)
+    if (_useHSPI)      //  HSPI
+    {
+      mySPI = new SPIClass(HSPI);
+      mySPI->end();
+      mySPI->begin(14, 12, 13, select);   //  CLK=14  MISO=12  MOSI=13
+    }
+    else               //  VSPI
+    {
+      mySPI = new SPIClass(VSPI);
+      mySPI->end();
+      mySPI->begin(18, 19, 23, select);   //  CLK=18  MISO=19  MOSI=23
+    }
+
+    #else              //  generic hardware SPI
+    mySPI->end();
+    mySPI->begin();
+    #endif
+  }
+  // else                 //  software SPI
+  // {
+  //   pinMode(_dataOut, OUTPUT);
+  //   pinMode(_clock,   OUTPUT);
+  //   digitalWrite(_dataOut, LOW);
+  //   digitalWrite(_clock,   LOW);
+  // }
+}
 
 uint8_t MPU9250SPI::getMPU9250ID()
 {
@@ -61,10 +78,9 @@ uint8_t MPU9250SPI::getMPU9250ID()
   return c;
 }
 
-  uint8_t MPU9250SPI::getAK8963CID()
+uint8_t MPU9250SPI::getAK8963CID()
 {
-//  uint8_t c = readByteAK8963(WHO_AM_I_AK8963);  // Read WHO_AM_I register for MPU-9250
-  writeByte(USER_CTRL, 0x20);    // Enable I2C Master mode  
+  writeByte(USER_CTRL, 0x30);    // Enable I2C Master mode  
   writeByte(I2C_MST_CTRL, 0x0D); // I2C configuration multi-master I2C 400KHz
 
   writeByte(I2C_SLV0_ADDR, AK8963_ADDRESS | 0x80);    // Set the I2C slave address of AK8963 and set for read.
@@ -793,31 +809,33 @@ void MPU9250SPI::SelfTest(float * destination) // Should return percent deviatio
 
   void MPU9250SPI::writeByte(uint8_t subAddress, uint8_t data)
 {
-  digitalWrite(SPI_CS_PIN, LOW); // Initialize the Tx buffer
-  spi.transfer(subAddress);           // Put slave register address in Tx buffer
-  spi.transfer(data);                 // Put data in Tx buffer
-  digitalWrite(SPI_CS_PIN, HIGH);        // Send the Tx buffer
+  digitalWrite(_select, LOW); // Initialize the Tx buffer
+  mySPI->beginTransaction(_spi_settings);
+  mySPI->transfer(subAddress);           // Put slave register address in Tx buffer
+  mySPI->transfer(data);                 // Put data in Tx buffer
+  mySPI->endTransaction();
+  digitalWrite(_select, HIGH);        // Send the Tx buffer
 }
 
 
   uint8_t MPU9250SPI::readByte(uint8_t subAddress)
 {
   uint8_t data = 0;
-  digitalWrite(SPI_CS_PIN, LOW);
-  spi.transfer(subAddress | 0x80); 
-  data = spi.transfer(0x00);
-  digitalWrite(SPI_CS_PIN, HIGH);
+  digitalWrite(_select, LOW);
+  mySPI->beginTransaction(_spi_settings);
+  mySPI->transfer(subAddress | 0x80); 
+  data = mySPI->transfer(0x00);
+  mySPI->endTransaction();
+  digitalWrite(_select, HIGH);
   return data; 
 }
 
   void MPU9250SPI::readBytes(uint8_t subAddress, uint8_t count, uint8_t * dest)
 {  
-  digitalWrite(SPI_CS_PIN, LOW);
-  spi.transfer(subAddress);
+  digitalWrite(_select, LOW);
+  mySPI->transfer(subAddress);
   for(int i = 0; i < count; i++){
-    dest[i++] = spi.transfer(0x00);
+    dest[i++] = mySPI->transfer(0x00);
   } 
-  digitalWrite(SPI_CS_PIN, HIGH);
+  digitalWrite(_select, HIGH);
 }
-
-          
